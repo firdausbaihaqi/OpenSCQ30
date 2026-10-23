@@ -69,10 +69,7 @@ struct MenuView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            // The art is laid out at its popup size and scaled down, so both places share one composition.
-            EarbudsArt(appeared: true, animates: false)
-                .frame(width: 84, height: 84)
-                .scaleEffect(0.52)
+            EarbudsArt(appeared: true, animates: false, budHeight: 33)
                 .frame(width: 44, height: 44)
                 .saturation(model.isConnected == false ? 0 : 1)
                 .opacity(model.isConnected == false ? 0.45 : 1)

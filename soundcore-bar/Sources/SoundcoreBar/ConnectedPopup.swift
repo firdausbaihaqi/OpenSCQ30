@@ -146,12 +146,17 @@ struct EarbudsArt: View {
 
     let appeared: Bool
     let animates: Bool
+    /// Height of each bud in points; the pair's spacing scales with it.
+    var budHeight: CGFloat = 64
 
+    @Environment(\.displayScale) private var displayScale
     @State private var floating = false
 
+    private var unit: CGFloat { budHeight / 64 }
+
     var body: some View {
-        if let left = Bundle.main.image(forResource: "DeviceLeft"),
-           let right = Bundle.main.image(forResource: "DeviceRight") {
+        if let left = ProductImage.named("DeviceLeft", height: budHeight, scale: displayScale),
+           let right = ProductImage.named("DeviceRight", height: budHeight, scale: displayScale) {
             ZStack {
                 bud(left, side: -1)
                 bud(right, side: 1)
@@ -172,23 +177,53 @@ struct EarbudsArt: View {
 
     /// `side` is -1 for the left bud, 1 for the right.
     private func bud(_ image: NSImage, side: CGFloat) -> some View {
+        // Drawn at its natural size (already resampled for this display), so only the tilt resamples it.
         Image(nsImage: image)
-            .resizable()
-            .scaledToFit()
-            .frame(height: 64)
+            .interpolation(.high)
+            .antialiased(true)
             .rotationEffect(.degrees(side * (appeared ? 8 : 30)))
             .scaleEffect(appeared ? 1 : 0.6)
-            .offset(x: side * (appeared ? 16 : 46), y: appeared ? side * 5 : 12)
+            .offset(x: side * (appeared ? 16 : 46) * unit, y: (appeared ? side * 5 : 12) * unit)
             .opacity(appeared ? 1 : 0)
             .animation(
                 animates ? .spring(response: 0.6, dampingFraction: 0.68).delay(side > 0 ? 0.24 : 0.15) : nil,
                 value: appeared
             )
-            .offset(y: floating ? side * 2.5 : -side * 2.5)
+            .offset(y: (floating ? side : -side) * 2.5 * unit)
             .animation(
                 animates ? .easeInOut(duration: 2.2).repeatForever(autoreverses: true).delay(0.9) : nil,
                 value: floating
             )
+    }
+}
+
+/// Product renders downsampled once to their on-screen pixel size. Letting the GPU shrink the 480 px
+/// source on every frame (then rotate it) skipped source pixels and left the edges jagged.
+@MainActor
+enum ProductImage {
+    private static var cache: [String: NSImage] = [:]
+
+    static func named(_ name: String, height: CGFloat, scale: CGFloat) -> NSImage? {
+        let key = "\(name)@\(height)x\(scale)"
+        if let cached = cache[key] { return cached }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "png"),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let sourceWidth = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+              let sourceHeight = properties[kCGImagePropertyPixelHeight] as? CGFloat
+        else { return nil }
+        // ImageIO thumbnails area-average the source, unlike a plain bilinear shrink.
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int((height * scale * max(sourceWidth, sourceHeight) / sourceHeight).rounded()),
+        ]
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        let image = NSImage(
+            cgImage: thumbnail,
+            size: NSSize(width: CGFloat(thumbnail.width) / scale, height: CGFloat(thumbnail.height) / scale)
+        )
+        cache[key] = image
+        return image
     }
 }
 

@@ -80,7 +80,7 @@ struct MenuView: View {
                     if model.isBusy { ProgressView().controlSize(.mini) }
                 }
                 if model.isConnected != false, model.batteryLeft != nil || model.batteryRight != nil {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 12) {
                         if let left = model.batteryLeft { batteryLabel("L", left) }
                         if let right = model.batteryRight { batteryLabel("R", right) }
                     }
@@ -265,16 +265,27 @@ struct MenuView: View {
         opensAtLogin = SMAppService.mainApp.status == .enabled
     }
 
+    /// Mini version of the connected popup's battery ring, kept tight against its "L 90%" text.
     private func batteryLabel(_ side: String, _ battery: EarbudsModel.Battery) -> some View {
-        Label {
-            Text("\(side) \(Int(battery.level * 100))%").monospacedDigit()
-        } icon: {
-            Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.\(Int((battery.level * 4).rounded()) * 25)")
+        HStack(spacing: 4) {
+            ZStack {
+                Circle().stroke(.quaternary, lineWidth: 2)
+                Circle()
+                    .trim(from: 0, to: battery.level)
+                    .stroke(battery.level <= 0.2 ? Color.red : Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 10, height: 10)
+            Text(side).foregroundStyle(.tertiary)
+                + Text(" \(Int(battery.level * 100))%").foregroundStyle(.secondary)
+            if battery.isCharging {
+                Image(systemName: "bolt.fill").font(.system(size: 8)).foregroundStyle(.secondary)
+            }
         }
-        .labelStyle(.titleAndIcon)
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(.caption.monospacedDigit())
         .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(side == "L" ? "Left" : "Right") \(Int(battery.level * 100)) percent\(battery.isCharging ? ", charging" : "")")
     }
 
     // "BassBooster" -> "Bass Booster"; "RnB" is the one ID that isn't camel case.

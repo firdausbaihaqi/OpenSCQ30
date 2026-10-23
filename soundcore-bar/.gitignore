@@ -1,0 +1,4 @@
+.build/
+build/
+# Anker product renders for the connected popup; not ours to redistribute.
+Resources/Device*.png
